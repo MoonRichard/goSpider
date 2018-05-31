@@ -1,5 +1,5 @@
 package main
-
+//被金门县搞坏的爬虫
 import (
 	"regexp"
 	"fmt"
@@ -7,25 +7,27 @@ import (
 	"net/http"
 	"mahonia"
 	"strconv"
+	"os"
+	"io"
 )
 var(
 	//起始页面
 	baseURL = `http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2016/`
 	regHref = `\d+(/\d+)?\.html`
+	regListv2 = `<table class([\s\S]*)</table>`
 	regList = `<a href=([\s\S]*)</table>`
 	//中文
 	regChar = `[^\x00-\xff]+`
+	regCharTitle = `([^\x00-\xff]+代码)|名称`
 	//数字
-	regNum = `>[0-9]+<`
+	regNum = `[0-9]{12}`
 	count = 0
-
+	f,_ = os.OpenFile("./data/info.txt",os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
 )
 
 func main(){
 	initUrl()
 }
-
-
 func initUrl(){
 	resp,_ := http.Get(baseURL)
 	body,_ := ioutil.ReadAll(resp.Body)
@@ -40,40 +42,51 @@ func initUrl(){
 	if len(provinceList)==len(urlList) {
 		i := 0
 		for ;i<len(provinceList) ; i++ {
-			fmt.Println(provinceList[i])
 			count ++
+			str := provinceList[i]+strconv.Itoa(count)
+			io.WriteString(f,str+"\n")
+			fmt.Printf("%s (%d)",provinceList[i],count)
+			fmt.Println()
 			next_url:= mixUrl(baseURL,urlList[i])
 			parsePage(next_url,"  ")
 		}
 	}else {
 		fmt.Println("解析首页错误")
 	}
+	f.Close()
 }
-
 func parsePage(url string,prefix string) {
-	resp,_ := http.Get(url)
+	resp,err := http.Get(url)
+	if err!=nil {
+		fmt.Println(url)
+		return
+	}
 	body,_ := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
 	//转码了解一下烦死了
 	utf8 := mahonia.NewDecoder("gbk").ConvertString(string(body))
-	table := getList(utf8)
+	table := getListV2(utf8)
 	idList , nameList := getIdAndName(table)
 	urlList := getUrlList(table)
+	isUrlExist := true
+	if len(urlList) == 0 {
+		isUrlExist = false
+	}
+	if len(urlList)!= len(idList) {
+		tmp := append([]string{},urlList[0:]...)
+		urlList=append(urlList[:0],"0.html")
+		urlList=append(urlList,tmp...)
+	}
 	i := 0
 	for ; i<len(idList);i++  {
 		count++
-		fmt.Print(prefix+idList[i]+" "+nameList[i])
-		fmt.Println(""+strconv.Itoa(count))
-		next_url := mixUrl(url,urlList[i])
-		parsePage(next_url,prefix+"  ")
-	}
-	return
-}
-
-func printIdAndName(id []string,name []string,outPrefix string){
-	i := 1
-	for ; i<len(id) ;i++{
-		fmt.Println(outPrefix+id[i]+" "+name[i])
+		str := prefix+idList[i]+" "+nameList[i]+"("+strconv.Itoa(count)+")"
+		io.WriteString(f,str+"\n")
+		fmt.Println(prefix+idList[i]+" "+nameList[i]+"("+strconv.Itoa(count)+")")
+		if isUrlExist {
+			nextUrl := mixUrl(url,urlList[i])
+			parsePage(nextUrl,prefix+"  ")
+		}
 	}
 }
 
@@ -97,16 +110,27 @@ func getList(doc string) (rs string){
 	rs = regList.FindString(doc)
 	return
 }
+
+func getListV2(doc string) (rs string){
+	regList := regexp.MustCompile(regListv2)
+	rs = regList.FindString(doc)
+	return
+}
+
 //获取id-name的列表
 func getIdAndName(str string)(id []string,name []string){
 	regChar := regexp.MustCompile(regChar)
 	regNum := regexp.MustCompile(regNum)
+	regTitle := regexp.MustCompile(regCharTitle)
 	for _,c := range regNum.FindAllString(str,-1){
-		c = string(c[1:len(c)-1])
+		c = string(c)
 		id = append(id,c)
 	}
 	for _,c := range regChar.FindAllString(str,-1){
-		name = append(name,c)
+		if regTitle.FindString(c) == "" {
+			name = append(name,c)
+		}
+
 	}
 	return
 }
