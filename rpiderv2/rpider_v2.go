@@ -13,16 +13,19 @@ import (
 var(
 	//起始页面
 	baseURL = `http://www.stats.gov.cn/tjsj/tjbz/tjyqhdmhcxhfdm/2016/`
-	regHref = `\d+(/\d+)?\.html`
+
 	regListv2 = `<table class([\s\S]*)</table>`
 	regList = `<a href=([\s\S]*)</table>`
+	regTd = ``
 	//中文
 	regChar = `[^\x00-\xff]+`
 	regCharTitle = `([^\x00-\xff]+代码)|名称`
 	//数字
 	regNum = `[0-9]{12}`
+	//href
+	regHref = `\d+(/\d+)?\.html`
 	count = 0
-	f,_ = os.OpenFile("./data/info.txt",os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
+	f,_ = os.OpenFile("./data/info.txt",os.O_CREATE|os.O_RDWR, 0666)
 )
 
 func main(){
